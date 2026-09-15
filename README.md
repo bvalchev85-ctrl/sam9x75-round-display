@@ -9,6 +9,27 @@ PIC64 webcam with arm/disarm and camera controls.
 console auto-starts at boot.** Verified on SAM9X75 Curiosity / RDK, kernel
 `6.18.17-linux4microchip-2026.04` (Buildroot BSP).
 
+## What it looks like
+
+The hardware is Microchip's **Round LCD Instrument Cluster Reference Design** — a
+4-inch **round** MIPI-DSI panel (720×720) driven by a **SAM9X75**. Official product
+page: **[Round LCD Instrument Cluster Reference Design ↗](https://www.microchip.com/en-us/tools-resources/reference-designs/round-lcd-instrument-cluster-reference-design)**
+
+<div align="center">
+  <img src="preview/rdk-round-display.jpg" alt="Microchip Round LCD Instrument Cluster Reference Design" width="460">
+</div>
+
+Instead of the stock instrument-cluster demo, this project draws a custom on-glass
+console that fills the circle. It shows the **live feed from a [PIC64GX webcam](https://github.com/bvalchev85-ctrl/PIC64_WebCam)**
+over the LAN, with arm/disarm and camera controls. These frames are captured from
+the running hardware:
+
+| Live camera feed | Armed · motion alert | Camera settings |
+|:---:|:---:|:---:|
+| <img src="preview/console-camera-round.png" alt="Round console — live camera feed" width="220"> | <img src="preview/console-armed-round.png" alt="Round console — armed, motion alert" width="220"> | <img src="preview/console-settings-round.png" alt="Round console — camera settings" width="220"> |
+
+<sub>RDK render &copy; Microchip (microchip.com); round-panel console frames captured from the running hardware.</sub>
+
 > **Start here for the reusable part:** [`linux-drivers/`](linux-drivers/) is
 > self-contained — the panel driver, the DSI/LCDC fixes, the GT9271 touch driver
 > and userspace poller, and the device-tree overlay, with a thorough
