@@ -1,0 +1,302 @@
+{
+  "$comment": "SAM9X75-RDK round panel bring-up spec. Updated 2026-09-07: panel, touch and camera all verified working on hardware. Values are measured on this board or taken from Microchip's MGS demo source / AN5753. Companion docs: SAM9X75-RDK_MD/round-panel-linux-bringup.md and linux-drivers/README.md",
+  "status": {
+    "panel_displays": true,
+    "panel_verified": true,
+    "note": "Clean, full, stable colour bars on glass. INT_ST1 bit 19 (dpi_buff_pld_under) still latches but is cosmetic at this timing.",
+    "working": [
+      "boot to root shell",
+      "ethernet 1Gbps",
+      "touch GT9271 (by I2C polling - see touch.interrupt_broken)",
+      "PIC64 MJPEG camera on the hardware overlay plane",
+      "on-board Python/cairo console UI"
+    ],
+    "verified_on": "2026-09-07"
+  },
+  "panel": {
+    "product": "Waveshare 4inch DSI LCD (C)",
+    "url": "https://www.waveshare.com/4inch-dsi-lcd-c.htm",
+    "resolution": {
+      "width": 720,
+      "height": 720
+    },
+    "interface": "MIPI-DSI, 2 lanes, RGB888"
+  },
+  "sources": {
+    "mgs_demo": {
+      "authority": "HIGHEST - Microchip's own working driver for this exact board+panel",
+      "repo": "github.com/mchpgfx/mgsh_sam9x7",
+      "config": "quickstart/firmware/src/config/dsi_xlcdc_rgba8888_ws_9x75_curiosity_720x720_round/",
+      "files": [
+        "gfx/display/ws_touch_display.c",
+        "gfx/driver/controller/xlcdc/bridge/dsi/plib_dsi.c",
+        "gfx/driver/controller/xlcdc/plib/plib_xlcdc.c"
+      ],
+      "vm_path": "~/mgsh_sam9x7"
+    },
+    "an5753": {
+      "authority": "HIGHEST for the Linux procedure + clock rule",
+      "title": "Adding Support for a Custom MIPI Display on a SAM9X7 Series MPU under Linux (DS00005753)",
+      "local_pdf": "tool-results/webfetch-1788726091770-wwcwp8.pdf (readable via Read pages=1-12)"
+    },
+    "waveshare_esp_lcd_dsi": {
+      "authority": "confirms MCU sequence",
+      "local_copy": "reference/waveshare-esp_lcd_dsi/"
+    }
+  },
+  "mcu_i2c_0x45": {
+    "address": "0x45",
+    "speed_hz": 100000,
+    "aes": false,
+    "aes_note": "NO AES challenge-response. That lock exists ONLY in the Raspberry-Pi MCU-bridge .ko variant. Dead end.",
+    "init_seq_before_video": [
+      {
+        "reg": "0xC0",
+        "val": "0x01"
+      },
+      {
+        "reg": "0xC2",
+        "val": "0x01"
+      },
+      {
+        "reg": "0xAC",
+        "val": "0x01"
+      },
+      {
+        "reg": "0xAD",
+        "val": "0x01"
+      }
+    ],
+    "init_delay_between_ms": 1,
+    "bright_seq_after_video": [
+      {
+        "reg": "0xAB",
+        "val": 55
+      },
+      {
+        "reg": "0xAA",
+        "val": "0x01"
+      }
+    ],
+    "bright_delay_after_video_ms": 50,
+    "measured_semantics": {
+      "0xAB": "backlight PWM, INVERTED: 0x00 = full bright, 0xFF = OFF (verified live). Demo uses 55.",
+      "0xAD_0xAC_0xC0_0xC2": "power/enable. Writing 0x00 turns the backlight OFF (verified live)."
+    }
+  },
+  "dsi": {
+    "data_lanes": 2,
+    "pixel_format": "RGB888",
+    "video_mode": "non-burst SYNC PULSES (demo VID_MODE_TYPE(0))",
+    "clock_mode": "CONTINUOUS (demo AUTO_CLKLANE_CTRL(0))",
+    "eot_packets": "OFF (demo EOTP_TX_EN(0)); Linux dw-mipi-dsi enables EOTP_TX by DEFAULT unless MIPI_DSI_MODE_NO_EOT_PACKET",
+    "linux_mode_flags": "MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE | MIPI_DSI_MODE_NO_EOT_PACKET",
+    "dcs_required": false,
+    "dcs_note": "The MGS demo sends NO DCS at all (no 0x11/0x29). Panel is driven by the 0x45 MCU + DSI video only.",
+    "demo_lane_rate_mbps": 660,
+    "linux_measured_lane_rate_mbps": 600,
+    "lane_rate_note": "HLINE = htotal * lane_mbps / 400. Measured HLINE 0x687=1671 -> 600 Mbps."
+  },
+  "timing": {
+    "source": "MGS demo plib_dsi.c + plib_xlcdc.c (they agree)",
+    "pixel_clock_mhz": 50,
+    "h": {
+      "active": 720,
+      "front_porch": 330,
+      "sync_width": 32,
+      "back_porch": 32,
+      "htotal": 1114
+    },
+    "v": {
+      "active": 720,
+      "front_porch": 8,
+      "sync_width": 4,
+      "back_porch": 16,
+      "vtotal": 748
+    },
+    "refresh_hz": 60,
+    "warning": "The 330-cycle H front porch is panel-specific. Generic/AI-sourced timings (40/10/40, 120/200/32) are WRONG."
+  },
+  "clock_polarity": {
+    "demo_lcdcfg0": "0x3 = CLKPOL(1) | CLKBYP(1)",
+    "linux_fix": "connector->display_info.bus_flags |= DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE;  /* -> CLKPOL=1 */",
+    "note": "Without it LCDCFG0=0x2 (CLKPOL=0): tolerable at low pixel clocks, wrong at 50 MHz."
+  },
+  "clocking": {
+    "pixel_clock_formula": "pixel = GCLK / CLKDIV (LCDC_LCDCFG0); CLKBYP bypasses the divider -> pixel = GCLK",
+    "gclk_peripheral_instance": 25,
+    "gclk_max_mhz": 75,
+    "gclk_max_note": "SAM9X7 peripheral table: LCDC instance 25 GCLK max 75 MHz. A 100 MHz request is silently clamped to 75.",
+    "driver_logic": "atmel_hlcdc_crtc.c (sam9x75 fixed_clksrc=true): div=DIV_ROUND_UP(sys_clk,mode_rate); if(div<2){div=2; NO CLKBYP -> pixel=sys_clk/2} else if(div_low<2) set CLKBYP -> pixel=sys_clk",
+    "measured": [
+      {
+        "assigned_rate_mhz": 50,
+        "lcd_gclk_mhz": 50,
+        "pixel_mhz": 25,
+        "refresh_hz": 30,
+        "path": "div<2 -> /2"
+      },
+      {
+        "assigned_rate_mhz": 66,
+        "lcd_gclk_mhz": 66.67,
+        "pixel_mhz": 66.67,
+        "refresh_hz": 80,
+        "path": "CLKBYP"
+      },
+      {
+        "assigned_rate_mhz": 100,
+        "lcd_gclk_mhz": 75,
+        "pixel_mhz": 75,
+        "refresh_hz": 90,
+        "path": "clamped to max, CLKBYP"
+      }
+    ],
+    "an5753_rule": {
+      "quote": "The pixel clock expected by the panel is 50 MHz. However, because of potential hardware limitations, experts recommend to program a slightly higher clock frequency, 60 MHz for example. In such case, the assigned clock rate is <60000000>.",
+      "meaning": "GCLK must run slightly ABOVE the panel pixel clock. That headroom keeps the DSI DPI buffer fed.",
+      "recommended_assigned_clock_rates": 60000000,
+      "failure_if_ignored": "GCLK == mode clock drops into the /2 path AND starves the DPI buffer -> INT_ST1 bit19 dpi_buff_pld_under -> BLACK SCREEN"
+    }
+  },
+  "debug_registers": {
+    "read_with": "devmem <addr> 32",
+    "LCDC_LCDCFG0": {
+      "addr": "0xf8038000",
+      "bits": "b0 CLKPOL, b1 CLKBYP, [23:16] CLKDIV-2",
+      "demo_value": "0x3"
+    },
+    "DSI_PWR_UP": "0xf8054004",
+    "DSI_VID_MODE_CFG": {
+      "addr": "0xf8054038",
+      "good": "0x3F00 = sync-pulse + LP blanking enables"
+    },
+    "DSI_VID_PKT_SIZE": "0xf805403c",
+    "DSI_VID_HSA_TIME": "0xf8054048",
+    "DSI_VID_HBP_TIME": "0xf805404c",
+    "DSI_VID_HLINE_TIME": "0xf8054050",
+    "DSI_VID_VSA_VBP_VFP_VACT": [
+      "0xf8054054",
+      "0xf8054058",
+      "0xf805405c",
+      "0xf8054060"
+    ],
+    "DSI_PHY_STATUS": {
+      "addr": "0xf80540b0",
+      "bits": "b0 = PLL lock",
+      "locked_value": "0x1529"
+    },
+    "DSI_INT_ST0": "0xf80540bc",
+    "DSI_INT_ST1": {
+      "addr": "0xf80540c0",
+      "bit19": "dpi_buff_pld_under (DPI buffer underflow)"
+    },
+    "clk_tree": "mount -t debugfs none /sys/kernel/debug; grep lcd_gclk /sys/kernel/debug/clk/clk_summary (rates are READ-ONLY)"
+  },
+  "debug_playbook": {
+    "serial": "Workshop/serialcmd.ps1 -PerCmdMs <ms> drives COM5 from Workshop/rdk-cmds.txt -> Workshop/rdk-shell.log. Keep command lines SHORT (long lines overrun the input buffer).",
+    "hold_pattern_indefinitely": "Make `modetest -M atmel-hlcdc -s 49@47:720x720` the LAST line of rdk-cmds.txt (nothing after) so it keeps waiting for Enter after the port closes.",
+    "connector_crtc": {
+      "connector": 49,
+      "crtc": 47
+    },
+    "measure_real_refresh": "modetest ... -v prints `freq:` = the ACTUAL refresh; the mode's nominal value can lie.",
+    "panel_alive_probe": "cat /dev/urandom > /dev/fb0",
+    "boot_is_black": "The console framebuffer is BLACK at boot - that is NOT a failure. Always judge with modetest."
+  },
+  "dead_ends": [
+    "AES 0xB0 challenge/response - RPi-bridge variant only.",
+    "Reverse-engineering harmony.bin - the only `mov #0x45` in 5.3MB is a PNG parser 'E' tag. MGS source supersedes it.",
+    "Generic/AI panel timings (clock-frequency=32000000, 40/10/40 porches) and panel-simple (cannot do the 0x45 MCU init).",
+    "Forcing GCLK == mode clock for an 'exact' pixel clock - drops into /2 and starves the DSI."
+  ],
+  "other_subsystems": {
+    "ethernet": "KSZ9131 @ MDIO addr 7 (NOT LAN8840@1); remove hardcoded ethernet-phy@1 so macb auto-scans",
+    "touch": "Goodix GT9271 @ I2C 0x14 on i2c7 (flexcom7 f8014600), IRQ pioC 15 edge-falling",
+    "drm": "card0 = microchip-gfx2d (GPU, no output); card1 = atmel-hlcdc",
+    "gst_gotcha": "busybox `pkill -f` does NOT match gst-launch-1.0 -> stale gst holds DRM master -> EACCES on later modesets; kill by PID via `fuser /dev/dri/card1`"
+  },
+  "build_deploy": {
+    "vm": "builder@BUILD-VM",
+    "driver_src": "~/sam9x75-rdk/buildroot/output/build/linux-custom/drivers/gpu/drm/panel/panel-waveshare-dsi.c (.bak = pristine)",
+    "patched_copy": "linux-image/panel-driver/panel-waveshare-dsi-rdk.c",
+    "kernel_rebuild": "cd ~/sam9x75-rdk/buildroot && make HOSTCC=~/sam9x75-rdk/hostwrap/cc HOSTCXX=~/sam9x75-rdk/hostwrap/cxx linux-rebuild",
+    "overlay_only_rebuild": "cd ~/SAM9X75-RDK/linux-image/buildroot && ./build.sh overlay   (much faster, no kernel rebuild)",
+    "deploy": "scp the .itb to the PC, copy onto the SD FAT boot partition (mounts as E: in Windows) - NO reflash needed"
+  },
+  "mode_in_use": {
+    "$comment": "The mode actually programmed. 'tuned' corrects a ~50 px right-shift of the framebuffer relative to the glass by moving pixels from sync+back porch into the front porch; htotal is unchanged so pixel clock and refresh are identical. Applied from userspace via SETCRTC - no kernel or DT rebuild needed.",
+    "clock_khz": 50000,
+    "base": {
+      "hdisplay": 720,
+      "hfp": 330,
+      "hsync": 32,
+      "hbp": 32,
+      "htotal": 1114,
+      "vdisplay": 720,
+      "vfp": 8,
+      "vsync": 4,
+      "vbp": 16,
+      "vtotal": 748
+    },
+    "tuned": {
+      "hdisplay": 720,
+      "hfp": 380,
+      "hsync": 8,
+      "hbp": 6,
+      "htotal": 1114,
+      "vdisplay": 720,
+      "vfp": 8,
+      "vsync": 4,
+      "vbp": 16,
+      "vtotal": 748
+    },
+    "h_shift_px": 50,
+    "lane_mbps": 660,
+    "registers": {
+      "LCDC_LCDCFG0": "0x00000003",
+      "DSI_PHY_STATUS": "0x1529",
+      "DSI_VID_HLINE_TIME": 1839
+    }
+  },
+  "touch": {
+    "controller": "Goodix GT9271",
+    "i2c": {
+      "bus_runtime": "i2c-1 (f8014600.i2c, flexcom7)",
+      "dt_alias": "&i2c6",
+      "address": "0x14"
+    },
+    "chip_id": "9271",
+    "firmware": "0x1060",
+    "interrupt_broken": {
+      "$comment": "/proc/interrupts gt9271 count stays at 1 for ever, so Goodix-TS emits no events even though it probes fine. Worked around by unbinding the driver and polling I2C from userspace.",
+      "dt_declares": "interrupts = <15 IRQ_TYPE_EDGE_FALLING> on pioC",
+      "to_try": [
+        "IRQ_TYPE_EDGE_RISING",
+        "level trigger",
+        "confirm the INT pin really is PC15 on the RDK schematic"
+      ]
+    },
+    "registers": {
+      "status": "0x814E (bit7 ready, bits3:0 count)",
+      "points": "0x814F (8 bytes each)",
+      "release": "write 0 to 0x814E"
+    }
+  },
+  "video_plane": {
+    "$comment": "The XLCDC high-end overlay plane takes I420 natively and scales in hardware: no software convert or scale is needed for an MJPEG stream (~130 ms/frame saved). Only negotiates with kmssink force-modesetting=false on an already configured CRTC.",
+    "plane_id": 43,
+    "formats": [
+      "AYUV",
+      "YUYV",
+      "UYVY",
+      "YVYU",
+      "VYUY",
+      "NV21",
+      "NV61",
+      "YU16",
+      "YU12"
+    ],
+    "other_planes": "33, 35, 39 are RGB-only",
+    "fill_square_panel": "render-rectangle larger than the CRTC, e.g. <-120,0,960,720> for a 640x480 feed; DRM clips it, giving an undistorted centre crop that fills 720x720"
+  }
+}

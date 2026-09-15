@@ -1,0 +1,78 @@
+#!/bin/sh
+#
+# Start the RDK home-security console.  This image uses Buildroot busybox init
+# (systemd is installed but is NOT PID 1 on this board), so this is a plain
+# /etc/init.d/SNN script - S99 puts it after networking.
+#
+# This busybox has no pkill/pgrep, so process tracking is done entirely with
+# start-stop-daemon's pidfile.  The wrapper shell uses `exec`, so the pidfile
+# PID *is* the python process and -K stops it directly.
+#
+# /etc/init.d/S99rdk-console {start|stop|restart|status}
+
+DAEMON=/opt/rdk-console/console.py
+PIDFILE=/var/run/rdk-console.pid
+LOG=/tmp/rdk-console.log
+CARD=/dev/dri/card1
+
+running() {
+	[ -s "$PIDFILE" ] || return 1
+	kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+start() {
+	printf 'Starting rdk-console: '
+	if [ ! -f "$DAEMON" ]; then
+		echo "FAIL ($DAEMON missing)"
+		return 1
+	fi
+	if running; then
+		echo "already running"
+		return 0
+	fi
+	# The console must be DRM master, so evict anything holding the card
+	# (a stale gst-launch from a previous run, for example).
+	fuser -k "$CARD" 2>/dev/null
+	cd /opt/rdk-console || return 1
+	start-stop-daemon -S -q -b -m -p "$PIDFILE" \
+		--startas /bin/sh -- -c "exec python3 $DAEMON >> $LOG 2>&1"
+	status=$?
+	if [ "$status" -eq 0 ]; then echo OK; else echo FAIL; fi
+	return "$status"
+}
+
+stop() {
+	printf 'Stopping rdk-console: '
+	start-stop-daemon -K -q -p "$PIDFILE" 2>/dev/null
+	# The console spawns gst-launch-1.0 in its own process group for the live
+	# view; if the console died without cleaning up, the pipeline may still
+	# hold the card.  Clearing the card by fd is reliable without pkill.
+	fuser -k "$CARD" 2>/dev/null
+	rm -f "$PIDFILE"
+	echo OK
+	return 0
+}
+
+restart() {
+	stop
+	sleep 1
+	start
+}
+
+case "$1" in
+start) start ;;
+stop) stop ;;
+restart | reload) restart ;;
+status)
+	if running; then
+		echo "rdk-console running (pid $(cat "$PIDFILE"))"
+	else
+		echo "rdk-console stopped"
+		exit 1
+	fi
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart|status}"
+	exit 1
+	;;
+esac

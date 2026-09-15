@@ -1,0 +1,27 @@
+# Buildroot config fragment for the SAM9X75 RDK.
+#
+# Append to output/.config after `make sam9x75_curiosity_graphics_defconfig`,
+# then `make olddefconfig`. build.sh does this for you.
+#
+# Rationale per block; most GStreamer bits are for Phase 4's video pipeline but
+# are cheap and let us bench the decode path during Phase 2 bring-up.
+
+# --- bring-up / debug tools on the target ---
+BR2_PACKAGE_LIBDRM_INSTALL_TESTS=y      # modetest, modeprint
+BR2_PACKAGE_EVTEST=y                    # touch event dump (/dev/input/eventN)
+BR2_PACKAGE_I2C_TOOLS=y                 # i2cdetect/i2cget for 0x14 / 0x45
+
+# --- GStreamer + plugins for the MJPEG feed decode (bench + Phase 4) ---
+BR2_PACKAGE_GSTREAMER1=y
+BR2_PACKAGE_GST1_PLUGINS_BASE=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_MULTIPART=y   # multipartdemux (MJPEG boundary split)
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_JPEG=y        # jpegdec (software JPEG)
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_SOUP=y        # souphttpsrc (pull feed.php)
+BR2_PACKAGE_GST1_PLUGINS_BAD=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_KMS=y          # kmssink (render to DRM/KMS plane)
+BR2_PACKAGE_GST1_LIBAV=y                           # optional: libav jpegdec fallback
+
+# --- networking basics for headless SSH work (usually already on) ---
+BR2_PACKAGE_OPENSSH=y
+BR2_PACKAGE_DHCPCD=y

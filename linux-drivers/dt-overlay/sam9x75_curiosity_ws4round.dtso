@@ -1,0 +1,143 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree overlay for the SAM9X75 Curiosity board with the
+ * Waveshare 4inch DSI LCD (C) — 720x720 round MIPI-DSI panel + Goodix
+ * GT9271 capacitive touch (the SAM9X75 Round Display Kit panel).
+ *
+ * Modeled on sam9x75_curiosity_mipi_display.dtso (the AC40T08A hx8394 kit),
+ * which plugs into the same DSI FPC connector, but the panel binding is
+ * different:
+ *
+ *   The stock in-tree driver drivers/gpu/drm/panel/panel-waveshare-dsi.c
+ *   (CONFIG_DRM_PANEL_WAVESHARE_TOUCHSCREEN) already supports this panel. It
+ *   is an *I2C* driver: the panel node lives on the DSI-connector I2C bus at
+ *   0x45 (the on-board power/backlight MCU) and finds the DSI host through an
+ *   of_graph endpoint. Its model table entry ws_panel_4_mode = 720x720 @
+ *   50 MHz, 2 lanes is selected by compatible "waveshare,4inch-panel".
+ *   So, unlike the hx8394 kit, there is NO panel child node under &dsi and NO
+ *   PWM backlight (the driver drives brightness over I2C itself).
+ *
+ *   Touch is Goodix GT9271 @0x14 (mainline "goodix"), NOT atmel maxtouch.
+ *
+ * See SAM9X75-RDK_MD/round-panel-linux-bringup.md for the parameter capture
+ * and SAM9X75-RDK_MD/PHASE2-HANDOFF.md for the driver-discovery note.
+ *
+ * VERIFY-ON-BENCH: the touch INT/RESET GPIOs and the I2C bus index (i2c6 is
+ * inherited from the hx8394 kit routing); confirm against the RDK schematic.
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/at91.h>
+#include <dt-bindings/clock/at91.h>
+
+&dsi {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			dsi_in: endpoint {
+				remote-endpoint = <&hlcdc_panel_output>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			dsi_out: endpoint {
+				remote-endpoint = <&ws_panel_in>;
+			};
+		};
+	};
+	/* No panel child node here: the Waveshare panel is an I2C device (below). */
+};
+
+&gpu {
+	status = "okay";
+};
+
+&hlcdc {
+	clocks = <&pmc PMC_TYPE_PERIPHERAL 25>, <&pmc PMC_TYPE_GCK 25>, <&clk32k 1>;
+	clock-names = "periph_clk", "sys_clk", "slow_clk";
+	assigned-clocks = <&pmc PMC_TYPE_GCK 25>;
+	assigned-clock-rates = <50000000>;
+	status = "okay";
+
+	display-controller {
+		port@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			hlcdc_panel_output: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&dsi_in>;
+			};
+		};
+	};
+
+	pwm {
+		status = "disabled";
+	};
+};
+
+&i2c6 {			/* DSI FPC connector I2C bus (same one the hx8394 kit uses) */
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	/*
+	 * Waveshare panel: the node sits on the panel's on-board MCU I2C address
+	 * (0x45). panel-waveshare-dsi binds here, drives power-up + backlight over
+	 * I2C, and finds the DSI host via the of_graph endpoint below.
+	 */
+	ws_panel: panel@45 {
+		compatible = "waveshare,4inch-panel";
+		reg = <0x45>;
+
+		port {
+			ws_panel_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+
+	gt9271: touchscreen@14 {
+		compatible = "goodix,gt9271";
+		reg = <0x14>;
+		interrupt-parent = <&pioC>;
+		interrupts = <15 IRQ_TYPE_EDGE_FALLING>;	/* DSI-connector touch INT = PC15 */
+		irq-gpios = <&pioC 15 GPIO_ACTIVE_HIGH>;
+		/*
+		 * reset-gpios: the Goodix driver only needs this for the
+		 * power-on I2C-address selection dance. The panel already
+		 * answers at 0x14, so we leave reset unwired by default to
+		 * avoid driving an unverified pin. If touch fails to probe,
+		 * confirm the touch RESET pin from the RDK schematic and
+		 * enable it here (and add it to pinctrl-0):
+		 * reset-gpios = <&pioC 16 GPIO_ACTIVE_HIGH>;	// VERIFY
+		 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gt9271_irq>;
+		touchscreen-size-x = <720>;
+		touchscreen-size-y = <720>;
+	};
+};
+
+&pinctrl {
+	gt9271 {
+		pinctrl_gt9271_irq: gt9271-irq {
+			atmel,pins =
+				<AT91_PIOC 15 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_UP_DEGLITCH>;
+		};
+	};
+};
+
+&{/} {
+	model = "SAM9X75-Curiosity: Waveshare 4inch round 720x720 DSI panel";
+};

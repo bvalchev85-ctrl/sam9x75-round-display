@@ -1,0 +1,30 @@
+CAPTURED STATE — RDK demo microSD backup
+=========================================
+Fill this in when you image the demo card (Phase 0).
+
+Date imaged            : ____-__-__
+Image file             : C:\ClaudeFiles\PROJECTS\SAM9X75-RDK\backup\sam9x75-demo-2026-09-02.img
+Image size (bytes)     : ______________
+Source card capacity   : ______ GB   brand/model: __________________
+Backup method (A/B/C)  : ___
+
+Card partition layout (from `fdisk -lu <img>`):
+  Part 1: start sector ______  size ______  type ____  (expect FAT / boot)
+  Part 2: (if any) ______________________________________
+
+FAT boot-partition contents (`ls -la` of mounted part 1):
+  [ ] boot.bin        size: __________
+  [ ] harmony.bin     size: __________
+  other files:
+  ______________________________________________________
+
+Verified original card still boots the demo after backup?  [ ] yes  [ ] no
+
+Notes:
+______________________________________________________
+______________________________________________________
+
+-- Reference (already known, no need to re-derive) -----------------
+Demo is BARE-METAL MGS Harmony (not Linux). Boots from FAT microSD in the
+slot on the BACK of the board: boot.bin (AT91Bootstrap) + harmony.bin (app).
+Panel = Waveshare 4inch DSI Round LCD (C), 720x720, Goodix GT9271 touch.

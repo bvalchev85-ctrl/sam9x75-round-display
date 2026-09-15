@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+# Bring eth0 up with a stable identity, then start sshd.
+#
+# STATIC BY DESIGN.  The RDK must reach the PIC64 webcam two ways:
+#   * over the house LAN (router present), and
+#   * over a single RJ45 cable straight to the PIC64 - no DHCP, no DNS, no
+#     gateway.
+# A static address in the same /24 as the camera works identically in both
+# cases, so there is nothing to switch when you re-cable.  DHCP cannot: on a
+# bare cable udhcpc finds no server, eth0 ends up with no IPv4 address at all,
+# and the console shows "no camera".
+#
+# Other things this image does not do for itself:
+#   * no MAC in the SoC fuses, so macb invents a random one each boot - pinned
+#     here so the identity (and any DHCP reservation) is stable;
+#   * /etc/resolv.conf ships as a dangling symlink into ../run/systemd/resolve/
+#     but systemd is not PID 1 here, so it is replaced with a real file;
+#   * sshd is not started and root has no password.
+#
+# /etc/init.d/S40rdk-net {start|stop|restart|status}
+
+IFACE=eth0
+MAC=02:9c:75:00:00:01
+STATIC_CIDR=192.168.0.39/24
+GATEWAY=192.168.0.1
+DNS=192.168.0.1
+USE_DHCP=0
+PIDFILE=/var/run/udhcpc.$IFACE.pid
+
+start() {
+    printf 'Starting network: '
+
+    # A real file, not the systemd-resolved symlink this image ships.
+    if [ -L /etc/resolv.conf ] || [ ! -e /etc/resolv.conf ]; then
+        rm -f /etc/resolv.conf
+        echo "nameserver $DNS" >/etc/resolv.conf
+    fi
+
+    ip link set "$IFACE" down 2>/dev/null
+    ip link set "$IFACE" address "$MAC" 2>/dev/null
+    ip link set "$IFACE" up 2>/dev/null
+
+    # Wait for the PHY to negotiate.
+    i=0
+    while [ "$i" -lt 15 ]; do
+        [ "$(cat /sys/class/net/$IFACE/operstate 2>/dev/null)" = up ] && break
+        sleep 1
+        i=$((i + 1))
+    done
+
+    if [ "$USE_DHCP" = 1 ]; then
+        udhcpc -i "$IFACE" -b -q -p "$PIDFILE" >/dev/null 2>&1
+    fi
+    if [ -n "$STATIC_CIDR" ]; then
+        ip addr add "$STATIC_CIDR" dev "$IFACE" 2>/dev/null
+        ip route add default via "$GATEWAY" 2>/dev/null
+    fi
+    printf '%s ' "$(ip -4 addr show $IFACE | sed -n 's/.*inet \([0-9.]*\).*/\1/p')"
+
+    # sshd: host keys are generated once and then live on the rootfs.
+    ssh-keygen -A >/dev/null 2>&1
+    if ! grep -q '^root:[^:]\{2,\}' /etc/shadow 2>/dev/null; then
+        echo 'root:CHANGEME' | chpasswd >/dev/null 2>&1
+    fi
+    [ -s /root/.ssh/authorized_keys ] && chmod 600 /root/.ssh/authorized_keys
+    /usr/sbin/sshd 2>/dev/null
+
+    echo OK
+}
+
+stop() {
+    printf 'Stopping network: '
+    [ -s "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
+    rm -f "$PIDFILE"
+    echo OK
+}
+
+case "$1" in
+start) start ;;
+stop) stop ;;
+restart) stop; sleep 1; start ;;
+status)
+    ip -4 addr show "$IFACE" | sed -n 's/.*inet \([0-9.]*\).*/ip \1/p'
+    if netstat -ltn 2>/dev/null | grep -q ':22 '; then
+        echo "sshd listening"
+    else
+        echo "sshd NOT listening"
+        exit 1
+    fi
+    ;;
+*)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 1
+    ;;
+esac

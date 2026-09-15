@@ -1,0 +1,29 @@
+/*
+ * Additions to dt-overlay-mchp/sam9x75_curiosity.its for the round panel.
+ *
+ * Insert the image node inside `images { ... }` (next to fdt_mipi_panel), and
+ * the configuration node inside `configurations { ... }` (next to `mipi`).
+ * Pick an unused load address; 0x23190000 is free in the stock .its (the last
+ * used is 0x23180000 for fdt_wilcs02_spi).
+ *
+ * build.sh patches these in automatically; kept here for review/manual use.
+ */
+
+/* --- add to: images { ... } --- */
+		fdt_ws4round {
+			description = "Device Tree blob for Waveshare 4inch round 720x720 DSI panel";
+			data = /incbin/("./sam9x75_curiosity/sam9x75_curiosity_ws4round.dtbo");
+			type = "flat_dt";
+			arch = "arm";
+			compression = "none";
+			load = <0x23190000>;
+			hash {
+				algo = "sha256";
+			};
+		};
+
+/* --- add to: configurations { ... } --- */
+		ws4round {
+			description = "FDT overlay blob for Waveshare 4inch round DSI panel";
+			fdt = "fdt_ws4round";
+		};

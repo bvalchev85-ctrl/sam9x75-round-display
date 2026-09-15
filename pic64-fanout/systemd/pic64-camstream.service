@@ -1,0 +1,29 @@
+[Unit]
+Description=PIC64 camera fan-out producer (one ffmpeg -> tmpfs latest.jpg for all viewers)
+# Needs the OV5647 CSI media pipeline up first (that service configures /dev/video0).
+After=network.target pic64-camera.service
+Wants=pic64-camera.service
+
+[Service]
+Type=simple
+# Run as the Apache user so www-data both owns /run/pic64cam AND can read it back
+# from feed.php/snapshot.php. www-data is already in the 'video' group (see deploy
+# notes) so it can drive v4l2/media-ctl for controls + capture.
+User=www-data
+Group=www-data
+SupplementaryGroups=video
+
+# systemd creates/owns /run/pic64cam (tmpfs) for us; mode lets Apache read it.
+RuntimeDirectory=pic64cam
+RuntimeDirectoryMode=0755
+
+ExecStart=/usr/bin/php /var/www/pic64webcam/camstream.php
+Restart=always
+RestartSec=2
+# Clean stop/restart: PHP traps SIGTERM and kills its ffmpeg child; mixed also
+# SIGKILLs the whole group as a backstop so /dev/video0 is always released.
+KillMode=mixed
+TimeoutStopSec=8
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round Live Cam — PIC64 → SAM9X75 RDK</title>
+<style>
+  :root{
+    --bg:#0c1012; --card:#141a1d; --line:#243033; --ink:#e9f1f2; --soft:#9fb0b4;
+    --teal:#34c9b8; --teal-ink:#7fe4d7; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(120% 90% at 50% -10%,#16323a,#0c1012 60%);
+    color:var(--ink);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+  .wrap{width:100%;max-width:680px}
+  .eyebrow{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-ink);
+    margin:0 0 8px;display:flex;align-items:center;gap:10px}
+  .eyebrow::before{content:"";width:22px;height:2px;background:var(--teal);display:inline-block}
+  h1{font-size:clamp(1.5rem,4vw,2.1rem);line-height:1.08;margin:0 0 .4rem;letter-spacing:-.01em}
+  .dek{color:var(--soft);margin:0 0 22px;max-width:56ch}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
+    box-shadow:0 18px 44px -20px rgba(0,0,0,.7)}
+  ol{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:14px}
+  ol li{padding-left:4px}
+  ol li b{color:var(--ink)}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:6px}
+  .bm{display:inline-flex;align-items:center;gap:9px;text-decoration:none;cursor:grab;
+    font-weight:600;color:#06201d;background:linear-gradient(150deg,var(--teal-ink),var(--teal));
+    padding:11px 18px;border-radius:999px;box-shadow:0 6px 18px -6px rgba(52,201,184,.6);
+    border:1px solid rgba(255,255,255,.25);user-select:none}
+  .bm .lens{width:16px;height:16px;border-radius:50%;border:2px solid #06201d;position:relative}
+  .bm .lens::after{content:"";position:absolute;inset:3px;border-radius:50%;background:#06201d}
+  .btn{font-weight:600;color:var(--ink);background:transparent;border:1px solid var(--line);
+    padding:10px 16px;border-radius:999px;cursor:pointer;text-decoration:none;display:inline-block}
+  .btn:hover{border-color:var(--teal);color:var(--teal-ink)}
+  .hint{font-size:.82rem;color:var(--soft);margin:6px 0 0}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1416;border:1px solid var(--line);
+    padding:1px 6px;border-radius:5px;color:var(--teal-ink);font-size:.85em}
+  .note{margin-top:18px;font-size:.82rem;color:#7c8b8f;line-height:1.5}
+  .note b{color:var(--soft)}
+  details{margin-top:14px}
+  summary{cursor:pointer;color:var(--teal-ink);font-size:.85rem}
+  pre{white-space:pre-wrap;word-break:break-all;background:#0b1416;border:1px solid var(--line);
+    border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:.72rem;color:var(--soft);margin-top:10px}
+  .grabbed{cursor:grabbing}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">SAM9X75 RDK · live camera</p>
+  <h1>Round Live Cam</h1>
+  <p class="dek">Show the PIC64_WebCam feed inside the round display frame — live, in your browser.
+  The feed is login-protected, so this works as a one-click bookmarklet on the camera page
+  (a plain local file can’t authenticate to the LAN stream on its own).</p>
+
+  <div class="card">
+    <ol>
+      <li><b>Add the button once:</b> drag <a class="bm" id="bm" href="#" title="Drag me to your bookmarks bar"><span class="lens"></span>Round&nbsp;Cam</a> up to your <b>bookmarks bar</b>.
+        <p class="hint">(Ctrl+Shift+B shows the bookmarks bar if it’s hidden.)</p>
+      </li>
+      <li><b>Open the camera &amp; sign in:</b>
+        <div class="row">
+          <a class="btn" href="http://192.168.0.38" target="_blank" rel="noopener">Open camera ↗</a>
+          <span class="hint">login <code>admin</code> / <code>admin</code> → the live viewer</span>
+        </div>
+      </li>
+      <li><b>Click <span style="color:var(--teal-ink);font-weight:600">Round&nbsp;Cam</span></b> on that viewer tab — the live feed snaps into the round display (bezel, LIVE badge, orbiting rings). Click it again anytime you reopen the camera.</li>
+    </ol>
+
+    <details>
+      <summary>What the button does / copy the code</summary>
+      <p class="hint">It restyles the camera’s own live <code>&lt;img id="cam"&gt;</code> (MJPEG from <code>stream.php</code>) into the round frame — same page, so the authenticated stream keeps flowing. Nothing is sent anywhere; it only changes how the page looks.</p>
+      <pre id="code"></pre>
+    </details>
+  </div>
+
+  <p class="note"><b>On the real RDK board</b> this bookmarklet isn’t needed: the SAM9X75 sits on the LAN and pulls
+  <code>http://192.168.0.38/stream.php</code> natively (GStreamer <code>souphttpsrc → jpegdec → kmssink</code>, or the EGT app),
+  with no browser login/CSP in the way. Endpoint: host <code>192.168.0.38</code>, path <code>/stream.php</code>, MJPEG multipart, 640×480.</p>
+</div>
+
+<script>
+// The round-frame transform, applied to the camera's own viewer page.
+var INJECT = function(){
+  var cam = document.getElementById('cam');
+  if(!cam){ alert('Open http://192.168.0.38 and sign in first, then click Round Cam on the live viewer page.'); return; }
+  if(document.getElementById('rdwrap')) return;               // already applied
+  ['.sidebar','.settings-menu'].forEach(function(s){var e=document.querySelector(s);if(e)e.style.display='none';});
+  var m=document.querySelector('main.stage'); if(m) m.style.display='none';
+  var st=document.createElement('style');
+  st.textContent='html,body{margin:0;height:100%;background:#05070a;overflow:hidden}#rdwrap{position:fixed;inset:0;display:grid;place-items:center}#rdstage{position:relative;width:min(64vmin,92vw);aspect-ratio:1;display:grid;place-items:center}.rdring{position:absolute;grid-area:1/1;aspect-ratio:1;border-radius:50%}.rr1{width:112%;border:1.5px dashed rgba(127,228,215,.35);animation:rdspin 16s linear infinite}.rr2{width:126%;border:1px dashed rgba(160,140,246,.28);animation:rdspin 26s linear infinite reverse}.rr3{width:140%;border:1px dotted rgba(127,228,215,.18);animation:rdspin 40s linear infinite}.rrc{width:120%;animation:rdspin 6s linear infinite;background:conic-gradient(from 0deg,transparent 0 86%,rgba(127,228,215,.9) 95%,transparent 100%);-webkit-mask:radial-gradient(circle,transparent 0 48.6%,#000 49.4% 50%,transparent 50.6%);mask:radial-gradient(circle,transparent 0 48.6%,#000 49.4% 50%,transparent 50.6%)}#rddev{position:relative;grid-area:1/1;width:100%;height:100%;border-radius:50%;background:radial-gradient(120% 120% at 30% 20%,#23282e,#14181b 62%);padding:3.2%;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px #0c0e10,0 30px 70px -24px rgba(0,0,0,.8),0 0 60px rgba(52,201,184,.15)}#rdscreen{position:relative;width:100%;height:100%;border-radius:50%;overflow:hidden;background:#000;box-shadow:inset 0 0 0 1px rgba(0,0,0,.9),inset 0 0 40px rgba(0,0,0,.7)}#cam{position:absolute;inset:0;width:100%!important;height:100%!important;object-fit:cover;display:block}#rdglass{position:absolute;inset:0;border-radius:50%;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.10) 0,transparent 34%),radial-gradient(70% 55% at 50% -8%,rgba(255,255,255,.10),transparent 60%);box-shadow:inset 0 0 60px rgba(0,0,0,.4)}#rdlive{position:absolute;top:9%;left:50%;transform:translateX(-50%);z-index:5;font:600 12px/1 system-ui;letter-spacing:.12em;color:#eafffb;display:flex;gap:7px;align-items:center;text-shadow:0 1px 4px rgba(0,0,0,.9)}#rdlive b{width:8px;height:8px;border-radius:50%;background:#ff5252;box-shadow:0 0 8px #ff5252;animation:rdblink 1.4s steps(1) infinite}@keyframes rdspin{to{transform:rotate(360deg)}}@keyframes rdblink{50%{opacity:0}}';
+  document.head.appendChild(st);
+  var w=document.createElement('div'); w.id='rdwrap';
+  var s=document.createElement('div'); s.id='rdstage';
+  s.innerHTML='<div class="rdring rr3"></div><div class="rdring rr2"></div><div class="rdring rr1"></div><div class="rdring rrc"></div>';
+  var d=document.createElement('div'); d.id='rddev';
+  var sc=document.createElement('div'); sc.id='rdscreen';
+  sc.appendChild(cam);
+  var g=document.createElement('div'); g.id='rdglass';
+  var lv=document.createElement('div'); lv.id='rdlive'; lv.innerHTML='<b></b>LIVE · PIC64';
+  sc.appendChild(g); sc.appendChild(lv); d.appendChild(sc); s.appendChild(d); w.appendChild(s);
+  document.body.appendChild(w);
+};
+// Build the bookmarklet href from the function source.
+var src = '(' + INJECT.toString() + ')();';
+var href = 'javascript:' + encodeURIComponent(src);
+document.getElementById('bm').setAttribute('href', href);
+document.getElementById('code').textContent = href;
+// grab-cursor nicety
+var bm=document.getElementById('bm');
+bm.addEventListener('mousedown',function(){bm.classList.add('grabbed');});
+document.addEventListener('mouseup',function(){bm.classList.remove('grabbed');});
+bm.addEventListener('click',function(e){e.preventDefault();});
+</script>
+</body>
+</html>

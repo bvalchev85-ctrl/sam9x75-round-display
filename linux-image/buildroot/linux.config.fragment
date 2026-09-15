@@ -1,0 +1,30 @@
+# Kernel config fragment for the SAM9X75 RDK round panel + touch.
+#
+# Merged on top of the graphics defconfig's kernel .config via
+# BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES (build.sh appends this path ALONGSIDE
+# the BSP's own at91 libcamera.fragment — it must not replace it).
+#
+# UPDATE 2026-09-03: The linux4microchip-2026.04 kernel already ships the
+# mainline/RPi Waveshare DSI panel driver (drivers/gpu/drm/panel/
+# panel-waveshare-dsi.c, symbol CONFIG_DRM_PANEL_WAVESHARE_TOUCHSCREEN). Its
+# model table contains ws_panel_4_mode = 720x720 @ 50 MHz, 2 lanes, bound to
+# compatible "waveshare,4inch-panel" == the Waveshare 4inch DSI LCD (C) round
+# panel used on the RDK. So we DO NOT build a custom driver anymore; we just
+# enable the stock one here and select it via the DT overlay compatible.
+
+# --- Waveshare DSI panel (stock in-tree driver; covers our 720x720 round) ---
+CONFIG_DRM_PANEL_WAVESHARE_TOUCHSCREEN=y
+
+# --- Goodix GT9271 capacitive touch (I2C 0x14) ---
+CONFIG_INPUT=y
+CONFIG_INPUT_TOUCHSCREEN=y
+CONFIG_TOUCHSCREEN_GOODIX=y
+
+# --- backlight class (the panel driver's 0x45-MCU brightness path) ---
+CONFIG_BACKLIGHT_CLASS_DEVICE=y
+
+# --- keep these on (already set by the graphics defconfig; harmless to assert) ---
+CONFIG_DRM=y
+CONFIG_DRM_MIPI_DSI=y
+CONFIG_DRM_PANEL=y
+CONFIG_DRM_ATMEL_HLCDC=y

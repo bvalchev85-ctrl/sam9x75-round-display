@@ -1,0 +1,12 @@
+# This repository targets embedded Linux. Shell scripts, init scripts and
+# device-tree sources MUST stay LF-terminated or they break on the board, so
+# normalize all text to LF in the working tree regardless of host OS.
+* text=auto eol=lf
+
+# Binary assets: no EOL munging, no diff noise.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff2 binary

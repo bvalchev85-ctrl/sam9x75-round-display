@@ -1,0 +1,43 @@
+# ============================================================================
+#  SAM9X75-RDK — .gitignore
+#  Excludes build outputs, large binaries (GitHub rejects files > 100 MB), and
+#  third-party / proprietary redistributions that are not ours to publish.
+#  See "Not included in this repository" in README.md.
+# ============================================================================
+
+# ---- Boot & build outputs (the ~900 MB sdcard.img lives here) --------------
+boot-images/
+*.img
+*.itb
+*.bin
+uboot.env
+
+# ---- Compiled kernel modules / device-tree blobs (build artifacts) ---------
+*.ko
+*.dtbo
+
+# ---- Archives --------------------------------------------------------------
+*.zip
+*.tar
+*.tar.*
+*.tgz
+
+# ---- Third-party & proprietary — fetch from the vendor, see README ---------
+#  Waveshare's driver package and Microchip's demo firmware / user guides are
+#  redistributed by their owners, not from this repository.
+DesignFiles/Waveshare-DSI-LCD-main/
+DesignFiles/Firmware-Binaries/
+*.pdf
+
+# ---- Video -----------------------------------------------------------------
+*.mp4
+*.mov
+
+# ---- Local / editor / OS cruft ---------------------------------------------
+*.swp
+*~
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
