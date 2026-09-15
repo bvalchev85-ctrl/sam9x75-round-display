@@ -62,8 +62,14 @@ Large build outputs and third-party / proprietary material are excluded via
 - **Boot & build outputs** — `boot-images/` (including the ~900 MB `sdcard.img`
   and the `.itb` variants) and compiled `*.ko` / `*.dtbo`. Rebuild from
   `linux-image/` (Buildroot BSP).
-- **Waveshare driver package** — `DesignFiles/Waveshare-DSI-LCD-main/`. Get it
-  from Waveshare (panel product page linked in the driver README).
+- **Waveshare driver package** — `DesignFiles/Waveshare-DSI-LCD-main/`, the
+  unmodified vendor package. It originates from Waveshare's **Raspberry Pi**
+  driver and does **not** run on the SAM9X75 as-is; the working SAM9X75 port —
+  the DSI frequency and screen-alignment changes — is in
+  [`linux-drivers/`](linux-drivers/). A verbatim snapshot of the stock package
+  is mirrored at
+  <https://github.com/bvalchev85-ctrl/waveshare-dsi-lcd-mirror> (or get it from
+  Waveshare, panel product page linked in the driver README).
 - **Microchip demo firmware & user guides** — `DesignFiles/Firmware-Binaries/`,
   the bare-metal `baremetal-test/*.bin`, and the RDK `*.pdf` guides. These are
   Microchip's to distribute; get them from Microchip / the MPLAB Graphics Suite.
